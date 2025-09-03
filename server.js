@@ -50,6 +50,24 @@ const promotionSchema = new mongoose.Schema({
 });
 const Promotion = mongoose.model('Promotion', promotionSchema);
 
+// Esquema de feria (nuevo)
+const feriaSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  date: { type: Date, required: true },
+  image: { type: String }, // Opcional, base64 para foto de referencia
+});
+const Feria = mongoose.model('Feria', feriaSchema);
+
+// Esquema de reseña (nuevo)
+const reviewSchema = new mongoose.Schema({
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  description: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+const Review = mongoose.model('Review', reviewSchema);
+
 // Middleware para verificar JWT
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -66,6 +84,12 @@ const authMiddleware = (req, res, next) => {
 // Middleware para verificar admin
 const adminMiddleware = (req, res, next) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'No eres admin' });
+  next();
+};
+
+// Middleware para verificar client (para reseñas)
+const clientMiddleware = (req, res, next) => {
+  if (req.user.role !== 'client') return res.status(403).json({ message: 'No eres cliente' });
   next();
 };
 
@@ -94,7 +118,7 @@ app.post('/api/login', async (req, res) => {
   if (!user || !await bcrypt.compare(password, user.password)) {
     return res.status(401).json({ message: 'Credenciales inválidas' });
   }
-  const token = jwt.sign({ username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
+  const token = jwt.sign({ username: user.username, role: user.role, id: user._id }, JWT_SECRET, { expiresIn: '1h' });
   res.json({ token, role: user.role });
 });
 
@@ -185,6 +209,68 @@ app.delete('/api/promotions/:id', authMiddleware, adminMiddleware, async (req, r
     res.json({ message: 'Promoción eliminada' });
   } catch (err) {
     res.status(400).json({ message: 'Error al eliminar: ' + err.message });
+  }
+});
+
+// Rutas de ferias (nuevo)
+app.get('/api/ferias', async (req, res) => {
+  const ferias = await Feria.find();
+  res.json(ferias);
+});
+
+app.post('/api/ferias', authMiddleware, adminMiddleware, async (req, res) => {
+  const { title, description, date, image } = req.body;
+  try {
+    const feria = new Feria({ title, description, date: new Date(date), image });
+    await feria.save();
+    res.json({ message: 'Feria subida' });
+  } catch (err) {
+    res.status(400).json({ message: 'Error al subir: ' + err.message });
+  }
+});
+
+app.put('/api/ferias/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { title, description, date, image } = req.body;
+  try {
+    const feria = await Feria.findByIdAndUpdate(
+      id,
+      { title, description, date: new Date(date), image },
+      { new: true, runValidators: true }
+    );
+    if (!feria) return res.status(404).json({ message: 'Feria no encontrada' });
+    res.json({ message: 'Feria actualizada', feria });
+  } catch (err) {
+    res.status(400).json({ message: 'Error al actualizar: ' + err.message });
+  }
+});
+
+app.delete('/api/ferias/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const feria = await Feria.findByIdAndDelete(id);
+    if (!feria) return res.status(404).json({ message: 'Feria no encontrada' });
+    res.json({ message: 'Feria eliminada' });
+  } catch (err) {
+    res.status(400).json({ message: 'Error al eliminar: ' + err.message });
+  }
+});
+
+// Rutas de reseñas
+app.get('/api/reviews/:productId', async (req, res) => {
+  const { productId } = req.params;
+  const reviews = await Review.find({ productId }).sort({ createdAt: -1 });
+  res.json(reviews);
+});
+
+app.post('/api/reviews', authMiddleware, clientMiddleware, async (req, res) => {
+  const { productId, description } = req.body;
+  try {
+    const review = new Review({ productId, userId: req.user.id, description });
+    await review.save();
+    res.json({ message: 'Reseña añadida' });
+  } catch (err) {
+    res.status(400).json({ message: 'Error al añadir reseña: ' + err.message });
   }
 });
 
