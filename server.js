@@ -50,7 +50,7 @@ const promotionSchema = new mongoose.Schema({
 });
 const Promotion = mongoose.model('Promotion', promotionSchema);
 
-// Esquema de feria (nuevo)
+// Esquema de feria
 const feriaSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, required: true },
@@ -59,7 +59,7 @@ const feriaSchema = new mongoose.Schema({
 });
 const Feria = mongoose.model('Feria', feriaSchema);
 
-// Esquema de reseña (nuevo)
+// Esquema de reseña de producto
 const reviewSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -67,6 +67,14 @@ const reviewSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 const Review = mongoose.model('Review', reviewSchema);
+
+// Esquema de reseña de la app (nuevo)
+const appReviewSchema = new mongoose.Schema({
+  description: { type: String, required: true },
+  rating: { type: Number, required: true, min: 1, max: 5 },
+  createdAt: { type: Date, default: Date.now },
+});
+const AppReview = mongoose.model('AppReview', appReviewSchema);
 
 // Middleware para verificar JWT
 const authMiddleware = (req, res, next) => {
@@ -212,7 +220,7 @@ app.delete('/api/promotions/:id', authMiddleware, adminMiddleware, async (req, r
   }
 });
 
-// Rutas de ferias (nuevo)
+// Rutas de ferias
 app.get('/api/ferias', async (req, res) => {
   const ferias = await Feria.find();
   res.json(ferias);
@@ -256,7 +264,7 @@ app.delete('/api/ferias/:id', authMiddleware, adminMiddleware, async (req, res) 
   }
 });
 
-// Rutas de reseñas
+// Rutas de reseñas de productos
 app.get('/api/reviews/:productId', async (req, res) => {
   const { productId } = req.params;
   const reviews = await Review.find({ productId }).sort({ createdAt: -1 });
@@ -271,6 +279,27 @@ app.post('/api/reviews', authMiddleware, clientMiddleware, async (req, res) => {
     res.json({ message: 'Reseña añadida' });
   } catch (err) {
     res.status(400).json({ message: 'Error al añadir reseña: ' + err.message });
+  }
+});
+
+// Rutas de reseñas de la app
+app.get('/api/app-reviews', async (req, res) => {
+  try {
+    const reviews = await AppReview.find().sort({ createdAt: -1 });
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ message: 'Error al cargar reseñas' });
+  }
+});
+
+app.post('/api/app-reviews', authMiddleware, clientMiddleware, async (req, res) => {
+  const { description, rating } = req.body;
+  try {
+    const review = new AppReview({ description, rating });
+    await review.save();
+    res.json({ message: 'Reseña añadida' });
+  } catch (err) {
+    res.status(400).json({ message: 'Error al guardar reseña: ' + err.message });
   }
 });
 
