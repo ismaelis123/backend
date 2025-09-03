@@ -31,15 +31,24 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// Esquema de producto
+// Esquema de producto (sin stock, con descripción)
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
+  description: { type: String, required: true },
   category: { type: String, required: true },
   price: { type: Number, required: true },
   image: { type: String, required: true }, // base64
-  stock: { type: Number, required: true }
 });
 const Product = mongoose.model('Product', productSchema);
+
+// Esquema de promoción
+const promotionSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  date: { type: Date, required: true },
+  image: { type: String }, // Opcional, base64
+});
+const Promotion = mongoose.model('Promotion', promotionSchema);
 
 // Middleware para verificar JWT
 const authMiddleware = (req, res, next) => {
@@ -98,9 +107,9 @@ app.get('/api/products', async (req, res) => {
 });
 
 app.post('/api/products', authMiddleware, adminMiddleware, async (req, res) => {
-  const { name, category, price, image, stock } = req.body;
+  const { name, description, category, price, image } = req.body;
   try {
-    const product = new Product({ name, category, price, image, stock });
+    const product = new Product({ name, description, category, price, image });
     await product.save();
     res.json({ message: 'Producto subido' });
   } catch (err) {
@@ -110,11 +119,11 @@ app.post('/api/products', authMiddleware, adminMiddleware, async (req, res) => {
 
 app.put('/api/products/:id', authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { name, category, price, image, stock } = req.body;
+  const { name, description, category, price, image } = req.body;
   try {
     const product = await Product.findByIdAndUpdate(
       id,
-      { name, category, price, image, stock },
+      { name, description, category, price, image },
       { new: true, runValidators: true }
     );
     if (!product) return res.status(404).json({ message: 'Producto no encontrado' });
@@ -135,14 +144,58 @@ app.delete('/api/products/:id', authMiddleware, adminMiddleware, async (req, res
   }
 });
 
+// Rutas de promociones
+app.get('/api/promotions', async (req, res) => {
+  const promotions = await Promotion.find();
+  res.json(promotions);
+});
+
+app.post('/api/promotions', authMiddleware, adminMiddleware, async (req, res) => {
+  const { title, description, date, image } = req.body;
+  try {
+    const promotion = new Promotion({ title, description, date: new Date(date), image });
+    await promotion.save();
+    res.json({ message: 'Promoción subida' });
+  } catch (err) {
+    res.status(400).json({ message: 'Error al subir: ' + err.message });
+  }
+});
+
+app.put('/api/promotions/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { title, description, date, image } = req.body;
+  try {
+    const promotion = await Promotion.findByIdAndUpdate(
+      id,
+      { title, description, date: new Date(date), image },
+      { new: true, runValidators: true }
+    );
+    if (!promotion) return res.status(404).json({ message: 'Promoción no encontrada' });
+    res.json({ message: 'Promoción actualizada', promotion });
+  } catch (err) {
+    res.status(400).json({ message: 'Error al actualizar: ' + err.message });
+  }
+});
+
+app.delete('/api/promotions/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const promotion = await Promotion.findByIdAndDelete(id);
+    if (!promotion) return res.status(404).json({ message: 'Promoción no encontrada' });
+    res.json({ message: 'Promoción eliminada' });
+  } catch (err) {
+    res.status(400).json({ message: 'Error al eliminar: ' + err.message });
+  }
+});
+
 // Datos iniciales (opcional)
 const seedData = async () => {
   if (await Product.countDocuments() > 0) return;
   const products = [
-    { name: 'Zapatillas Nike', category: 'Calzado', price: 50, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==', stock: 10 },
-    { name: 'Camisa Polo', category: 'Ropa', price: 20, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==', stock: 15 },
-    { name: 'Pañales Huggies', category: 'Bebé', price: 15, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==', stock: 20 },
-    { name: 'Almohada Suave', category: 'Hogar', price: 25, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==', stock: 8 },
+    { name: 'Zapatillas Nike', description: 'Zapatillas cómodas para deporte', category: 'Calzado', price: 50, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==' },
+    { name: 'Camisa Polo', description: 'Camisa elegante para cualquier ocasión', category: 'Ropa', price: 20, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==' },
+    { name: 'Pañales Huggies', description: 'Pañales absorbentes para bebés', category: 'Bebé', price: 15, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==' },
+    { name: 'Almohada Suave', description: 'Almohada cómoda para el hogar', category: 'Hogar', price: 25, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==' },
   ];
   await Product.insertMany(products);
 };
